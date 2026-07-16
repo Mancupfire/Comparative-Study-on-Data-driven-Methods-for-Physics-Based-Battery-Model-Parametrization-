@@ -1,0 +1,51 @@
+# Batch 3 — ERROR-METRIC task (Task B). Independent of the time-series task.
+# Same pipeline/protocol as Batch 2 (src/error_metric_data.py + error_metric_train.py).
+status: runnable
+dataset_name: Data_Batch_3
+task: error_metric
+
+# Raw Batch 3 dir holding the three source CSVs (immutable; read-only).
+# Data_Batch_3_raw is a symlink -> generate_training_data.
+data_dir: data/Data_Batch_3_raw
+
+output_root: outputs/Data_Batch_3/error_metric
+log_root: logs/Data_Batch_3/error_metric
+smoke_output_root: outputs_smoke/Data_Batch_3/error_metric
+audit_path: outputs/Data_Batch_3/data_audit/error_metric/data_quality_summary.json
+
+# 17 inputs: 12 parameters + [c_rate, ambient_temp_C, initial_temp_C] + one-hot(operation_code).
+features:
+  parameters: 12
+  condition_numeric: [c_rate, ambient_temp_C, initial_temp_C]
+  condition_categorical_onehot: [operation_code]
+
+targets:
+  - rmse_voltage_mv
+  - rmse_temperature_c
+target_scaling: standard_per_target
+
+train_ratio: 0.7
+val_ratio: 0.15
+test_ratio: 0.15
+seed: 42
+split_by: sample_id
+
+models:
+  - extratrees
+  - mlp
+
+# MLP hyperparameters (Batch 2 protocol).
+epochs: 200
+batch_size: 256
+lr: 0.001
+weight_decay: 0.0001
+hidden_dim: 128
+num_layers: 3
+dropout: 0.1
+patience: 20
+device: auto
+
+# ExtraTrees.
+n_estimators: 300
+
+metrics: [RMSE, MAE, R2]

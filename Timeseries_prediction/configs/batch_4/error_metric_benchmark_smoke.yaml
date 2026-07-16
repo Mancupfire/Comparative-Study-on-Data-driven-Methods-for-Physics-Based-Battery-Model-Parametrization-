@@ -1,0 +1,56 @@
+# Batch 4 — ERROR-METRIC BENCHMARK (12 families) SMOKE config.
+# Tiny budget; writes ONLY under outputs_smoke/. Never touches Batch 1/2/3/4 full outputs.
+status: runnable
+dataset_name: Data_Batch_4
+task: error_metric_benchmark
+
+data_dir: data/Data_Batch_4_raw
+output_root: outputs/Data_Batch_4/error_metric_benchmark
+smoke_output_root: outputs_smoke/Data_Batch_4/error_metric_benchmark
+log_root: logs/Data_Batch_4/error_metric_benchmark
+
+protocol: grouped_holdout
+targets: [rmse_voltage_mv, rmse_temperature_c]
+target_scaling: standard_per_target
+
+train_ratio: 0.7
+val_ratio: 0.15
+test_ratio: 0.15
+seed: 42
+seeds: [42]
+
+models:
+  - ann
+  - mlp
+  - wide_deep_mlp
+  - attention_mlp
+  - gated_mlp
+  - residual_mlp
+  - multitask_mlp
+  - deep_ensemble_mlp
+  - rnn
+  - lstm
+  - bilstm
+  - extratrees
+
+# Tiny neural budget.
+optimizer: adamw
+epochs: 4
+batch_size: 256
+lr: 0.001
+weight_decay: 0.0001
+hidden_dim: 32
+num_layers: 2
+dropout: 0.1
+patience: 5
+grad_clip: 1.0
+ann_hidden_dim: 16
+attn_embed_dim: 16
+attn_num_heads: 2
+rnn_hidden_dim: 16
+rnn_num_layers: 1
+ensemble_size: 2
+
+# Tiny ExtraTrees.
+n_estimators: 20
+device: auto

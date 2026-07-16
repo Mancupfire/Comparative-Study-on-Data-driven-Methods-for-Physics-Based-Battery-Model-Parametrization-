@@ -1,0 +1,31 @@
+# Default configuration for the battery time-series surrogate training system.
+# Scripts accept CLI flags that override any value here; this file documents the
+# sensible defaults and can be loaded by custom drivers via PyYAML.
+
+data_root: generate_training_data
+outputs_dir: outputs
+
+# Sample-wise split (over parameter sets, never over time points).
+train_ratio: 0.7
+val_ratio: 0.15
+test_ratio: 0.15
+seed: 42
+
+# Optimisation
+batch_size: 64
+epochs: 300
+lr: 0.001
+weight_decay: 0.0001
+patience: 30          # early-stopping patience on validation loss
+
+# Architecture
+hidden_dim: 256
+num_layers: 2         # used by rnn / lstm / bilstm
+dropout: 0.1
+norm: layernorm       # mlp normalisation: layernorm | batchnorm | none
+
+# Loss: total = loss_v + lambda_temp * loss_t
+lambda_temp: 1.0
+
+# Hardware: auto -> cuda if available else cpu
+device: auto

@@ -1,0 +1,69 @@
+# Batch 4 — ERROR-METRIC BENCHMARK (12 families), FULL config.
+# Restores the legacy 11-family neural benchmark + ExtraTrees baseline.
+# Targets predicted in physical units after inverse transform:
+#   rmse_voltage_mv (mV), rmse_temperature_c (degC).
+# Recommended protocol: grouped_holdout (split by sample_id, no leakage).
+status: runnable
+dataset_name: Data_Batch_4
+task: error_metric_benchmark
+
+# Immutable raw Batch-4 source (symlink -> generate_training_data_1000samples).
+data_dir: data/Data_Batch_4_raw
+
+output_root: outputs/Data_Batch_4/error_metric_benchmark
+smoke_output_root: outputs_smoke/Data_Batch_4/error_metric_benchmark
+log_root: logs/Data_Batch_4/error_metric_benchmark
+
+# 17 inputs: 12 parameters + [c_rate, ambient_temp_C, initial_temp_C] + one-hot(operation_code).
+features:
+  parameters: 12
+  condition_numeric: [c_rate, ambient_temp_C, initial_temp_C]
+  condition_categorical_onehot: [operation_code]
+
+protocol: grouped_holdout          # grouped_holdout | legacy_reproduction
+targets: [rmse_voltage_mv, rmse_temperature_c]
+target_scaling: standard_per_target
+
+train_ratio: 0.7
+val_ratio: 0.15
+test_ratio: 0.15
+seed: 42
+seeds: [42, 43, 44]                 # three-seed benchmark -> mean +/- std
+
+models:
+  - ann
+  - mlp
+  - wide_deep_mlp
+  - attention_mlp
+  - gated_mlp
+  - residual_mlp
+  - multitask_mlp
+  - deep_ensemble_mlp
+  - rnn
+  - lstm
+  - bilstm
+  - extratrees
+
+# Neural training (Adam/AdamW + ReduceLROnPlateau + early stopping + grad clip).
+optimizer: adamw
+epochs: 300
+batch_size: 256
+lr: 0.001
+weight_decay: 0.0001
+hidden_dim: 128
+num_layers: 3
+dropout: 0.1
+patience: 30
+grad_clip: 1.0
+
+# Family-specific defaults.
+ann_hidden_dim: 64
+attn_embed_dim: 32
+attn_num_heads: 4
+rnn_hidden_dim: 64
+rnn_num_layers: 1
+ensemble_size: 5
+
+# ExtraTrees baseline.
+n_estimators: 300
+device: auto

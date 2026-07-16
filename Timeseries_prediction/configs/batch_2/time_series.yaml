@@ -1,0 +1,16 @@
+# Batch 2 — TIME-SERIES task: DEPRECATED POINTER (do not use directly).
+#
+# This file previously pointed at the cleaned NATIVE-resolution data while
+# (incorrectly) describing it as "Batch-1-comparable". It has been split into
+# two explicit, correctly-labelled configs:
+#
+#   * MAIN (Batch-1-comparable, 160-point downsampled grid):
+#       configs/batch_2/time_series_downsampled_160.yaml
+#   * ABLATION (native ~1 s resolution, NOT comparable):
+#       configs/batch_2/time_series_native_ablation.yaml
+#
+# Use one of those. The launch scripts now reference the explicit configs.
+status: deprecated_split_into_two_configs
+superseded_by:
+  main: configs/batch_2/time_series_downsampled_160.yaml
+  ablation: configs/batch_2/time_series_native_ablation.yaml

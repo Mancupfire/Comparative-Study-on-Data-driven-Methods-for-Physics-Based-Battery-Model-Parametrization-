@@ -6,13 +6,58 @@ bin-release/
 
 # Other files and folders
 .settings/
-
 # Executables
 *.swf
 *.air
 *.ipa
 *.apk
-
 # Project files, i.e. `.project`, `.actionScriptProperties` and `.flexProperties`
 # should NOT be excluded as they contain compiler settings and other important
 # information for Eclipse / Flash Builder.
+# Local environments and secrets
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+.claude/
+.vscode/
+.idea/
+# Python cache
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ipynb_checkpoints/
+# Data and generated results
+data/
+outputs/
+outputs_smoke/
+checkpoints/
+predictions/
+logs/
+wandb/
+# Trained models and binary files
+*.pt
+*.pth
+*.ckpt
+*.pkl
+*.joblib
+*.h5
+*.hdf5
+# Archives and logs
+*.zip
+*.tar.gz
+*.log
+# Historical/generated experiment results
+Timeseries_prediction/reports/
+Timeseries_prediction/artifacts/
+Timeseries_prediction/ann_rmse_training_2500_physics_aligned/
+Timeseries_prediction/prompts/
+# Generated run outputs
+Timeseries_prediction/data/
+Timeseries_prediction/outputs/
+Timeseries_prediction/outputs_smoke/
+Timeseries_prediction/checkpoints/
+Timeseries_prediction/predictions/
+Timeseries_prediction/logs/
+# Model/data binaries

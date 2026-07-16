@@ -1,0 +1,27 @@
+# Batch 3 — ERROR-METRIC SMOKE config. Reduced settings (50 trees / 5 epochs).
+# Writes only to outputs_smoke/Data_Batch_3/... Never touches Batch 1/2.
+status: runnable
+dataset_name: Data_Batch_3
+task: error_metric
+
+data_dir: data/Data_Batch_3_raw
+smoke_output_root: outputs_smoke/Data_Batch_3/error_metric
+log_root: logs/Data_Batch_3/error_metric
+
+targets:
+  - rmse_voltage_mv
+  - rmse_temperature_c
+
+train_ratio: 0.7
+val_ratio: 0.15
+test_ratio: 0.15
+seed: 42
+split_by: sample_id
+
+models:
+  - extratrees
+  - mlp
+
+epochs: 5
+n_estimators: 50
+device: auto

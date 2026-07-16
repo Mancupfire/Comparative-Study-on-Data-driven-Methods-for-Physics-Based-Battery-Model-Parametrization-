@@ -1,0 +1,56 @@
+# Batch 2 — TIME-SERIES task, NATIVE-RESOLUTION ABLATION.
+#
+# *** NOT Batch-1-comparable. ***
+# This trains on the cleaned native ~1 s resolution cases (t_last 678-7030,
+# variable per case). The time grid differs fundamentally from Batch 1's short
+# fixed grid, so results from this config must NOT be compared head-to-head with
+# Batch 1 or with the main downsampled experiment. It is an ablation only,
+# studying the effect of temporal resolution.
+#
+# The Batch-1-comparable MAIN experiment is:
+#   configs/batch_2/time_series_downsampled_160.yaml
+#
+# Do not launch the full ablation without explicit approval (heavy: BiLSTM/
+# CNN-BiLSTM over up to 7030 timesteps).
+
+dataset_name: Data_Batch_2
+task: time_series
+variant: native_ablation        # native resolution; NOT comparable to Batch 1
+
+# Cleaned, verified, full-resolution dataset (immutable; never overwritten).
+data_root: data/Data_Batch_2_cleaned
+
+# Isolated ablation namespaces — separate from the main downsampled experiment.
+output_root: outputs/Data_Batch_2/time_series_native_ablation
+log_root: logs/Data_Batch_2/time_series_native_ablation
+smoke_output_root: outputs_smoke/Data_Batch_2/time_series_native_ablation
+
+models:
+  - mlp
+  - rnn
+  - lstm
+  - bilstm
+  - cnn
+  - cnn_bilstm
+  - bayesian_mlp
+
+# ---- modelling protocol UNCHANGED from Batch 1 (configs/config.yaml) ---- #
+train_ratio: 0.7
+val_ratio: 0.15
+test_ratio: 0.15
+seed: 42
+
+batch_size: 64
+epochs: 300
+lr: 0.001
+weight_decay: 0.0001
+patience: 30
+
+hidden_dim: 256
+num_layers: 2
+dropout: 0.1
+norm: layernorm
+
+lambda_temp: 1.0
+mc_samples: 30
+device: auto

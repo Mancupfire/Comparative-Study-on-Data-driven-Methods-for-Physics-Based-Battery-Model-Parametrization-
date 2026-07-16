@@ -1,0 +1,50 @@
+# Error-metric FINAL extension — new tree families (RF / XGBoost / CatBoost).
+# Reuses the exact grouped split / 17 features / two targets / train-only scalers
+# of the completed grouped benchmark, so the new models are directly comparable.
+status: runnable
+dataset_name: Data_Batch_4
+task: error_metric_final_extension
+
+# Immutable raw Batch-4 source (same as the completed benchmark).
+data_dir: data/Data_Batch_4_raw
+
+output_root: outputs/Data_Batch_4/error_metric_final_extension
+smoke_output_root: outputs_smoke/Data_Batch_4/error_metric_final_extension
+
+protocol: grouped_holdout
+targets: [rmse_voltage_mv, rmse_temperature_c]
+train_ratio: 0.7
+val_ratio: 0.15
+test_ratio: 0.15
+seeds: [42, 43, 44]
+
+# Only the three NEW families are trained here (the five reused families are
+# copied verbatim from the completed grouped benchmark by combine.py).
+new_models:
+  - random_forest
+  - xgboost
+  - catboost
+
+# Random Forest (sklearn, native multi-output).
+rf_n_estimators: 300
+rf_max_depth: null
+
+# XGBoost (native multi-output regression tree).
+xgb_n_estimators: 400
+xgb_max_depth: 6
+xgb_learning_rate: 0.05
+xgb_subsample: 0.8
+xgb_colsample_bytree: 0.8
+xgb_reg_lambda: 1.0
+xgb_tree_method: hist
+
+# CatBoost (MultiRMSE loss).
+cat_iterations: 500
+cat_depth: 6
+cat_learning_rate: 0.05
+
+n_jobs: -1
+
+# Reuse mapping (informational; consumed by combine.py via CLI flags).
+reused_models: [ann, mlp, gated_mlp, deep_ensemble_mlp, extratrees]
+reused_run: outputs/Data_Batch_4/error_metric_benchmark/batch4_em_grouped_20260622_110539

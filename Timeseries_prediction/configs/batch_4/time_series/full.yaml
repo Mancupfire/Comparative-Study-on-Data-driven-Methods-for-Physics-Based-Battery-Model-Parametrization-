@@ -1,0 +1,52 @@
+# Batch 4 — TIME-SERIES task, MAIN experiment (Batch-3-comparable).
+#
+# New INDEPENDENT dataset (data/generate_training_data_1000samples, referenced via
+# data/Data_Batch_4_raw): 1000 parameter sets, 12 operating cases, 12000 valid
+# sequences, 0 failed. c-rate dependent native sampling (20/6/3 s). Processed to a
+# fixed 160-point uniform grid with the SAME deterministic numpy.interp procedure
+# as Batch 2/3 so the modelling protocol is identical and scientifically
+# comparable. Batch 1/2/3 artifacts are never touched or reused.
+
+dataset_name: Data_Batch_4
+task: time_series
+variant: downsampled_160
+
+# Batch-3-comparable processed dataset (built by build_cases_from_timeseries.py
+# + build_batch2_downsampled.py; raw source is immutable).
+data_root: data/Data_Batch_4_downsampled_160
+
+# Isolated Batch 4 MAIN namespaces (run_id appended by the launch scripts).
+output_root: outputs/Data_Batch_4/time_series_downsampled_160
+log_root: logs/Data_Batch_4/time_series_downsampled_160
+smoke_output_root: outputs_smoke/Data_Batch_4/time_series_downsampled_160
+
+# Authoritative per-case model inventory (same 7 as Batch 2/3).
+models:
+  - mlp
+  - rnn
+  - lstm
+  - bilstm
+  - cnn
+  - cnn_bilstm
+  - bayesian_mlp
+
+# ---- protocol UNCHANGED from Batch 2/3 (configs/batch_3/time_series/full.yaml) ---- #
+train_ratio: 0.7
+val_ratio: 0.15
+test_ratio: 0.15
+seed: 42
+
+batch_size: 64
+epochs: 300
+lr: 0.001
+weight_decay: 0.0001
+patience: 30
+
+hidden_dim: 256
+num_layers: 2
+dropout: 0.1
+norm: layernorm
+
+lambda_temp: 1.0
+mc_samples: 30          # MC-Dropout passes for bayesian_mlp at evaluation
+device: auto            # single GPU via CUDA_VISIBLE_DEVICES

@@ -1,0 +1,56 @@
+# Batch 2 — TIME-SERIES task, MAIN experiment (Batch-1-comparable).
+#
+# This is the AUTHORITATIVE main time-series experiment. Each native case was
+# deterministically downsampled to a fixed 160-point uniform grid over its full
+# physical time range (see scripts/build_batch2_downsampled.py), so the time
+# grid is comparable to Batch 1's short fixed grid (t_last ~147-178). The
+# modelling protocol (split, scalers, models, loss, optimiser) is identical to
+# Batch 1; only the dataset identity and output namespaces differ.
+#
+# Native ~1 s resolution is a SEPARATE ablation:
+#   configs/batch_2/time_series_native_ablation.yaml
+# and must NOT be mixed with this experiment.
+
+dataset_name: Data_Batch_2
+task: time_series
+variant: downsampled_160        # Batch-1-comparable fixed grid
+
+# Verified, downsampled, Batch-1-comparable dataset (built from the cleaned full
+# extract; the raw on-disk time_series.csv was truncated and is never used).
+data_root: data/Data_Batch_2_downsampled_160
+
+# Isolated Batch 2 MAIN namespaces (run_id appended by the launch scripts).
+output_root: outputs/Data_Batch_2/time_series_downsampled_160
+log_root: logs/Data_Batch_2/time_series_downsampled_160
+smoke_output_root: outputs_smoke/Data_Batch_2/time_series_downsampled_160
+
+# Authoritative per-case model inventory for this task.
+models:
+  - mlp
+  - rnn
+  - lstm
+  - bilstm
+  - cnn
+  - cnn_bilstm
+  - bayesian_mlp
+
+# ---- everything below is UNCHANGED from Batch 1 (configs/config.yaml) ---- #
+train_ratio: 0.7
+val_ratio: 0.15
+test_ratio: 0.15
+seed: 42
+
+batch_size: 64
+epochs: 300
+lr: 0.001
+weight_decay: 0.0001
+patience: 30
+
+hidden_dim: 256
+num_layers: 2
+dropout: 0.1
+norm: layernorm
+
+lambda_temp: 1.0
+mc_samples: 30          # MC-Dropout passes for bayesian_mlp at evaluation
+device: auto            # resolves to cuda (single GPU via CUDA_VISIBLE_DEVICES=0)

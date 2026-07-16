@@ -1,0 +1,29 @@
+# Batch 4 — TIME-SERIES SMOKE config. All 7 models on ONE case, 2 epochs.
+# Writes only to outputs_smoke/Data_Batch_4/... Never touches Batch 1/2/3.
+dataset_name: Data_Batch_4
+task: time_series
+variant: downsampled_160
+
+data_root: data/Data_Batch_4_downsampled_160
+smoke_output_root: outputs_smoke/Data_Batch_4/time_series_downsampled_160
+log_root: logs/Data_Batch_4/time_series_downsampled_160
+smoke_case: CC_C_2p5_T25C        # representative valid case (160 pts after downsampling)
+
+models:
+  - mlp
+  - rnn
+  - lstm
+  - bilstm
+  - cnn
+  - cnn_bilstm
+  - bayesian_mlp
+
+train_ratio: 0.7
+val_ratio: 0.15
+test_ratio: 0.15
+seed: 42
+batch_size: 64
+epochs: 2
+lr: 0.001
+mc_samples: 3
+device: auto
