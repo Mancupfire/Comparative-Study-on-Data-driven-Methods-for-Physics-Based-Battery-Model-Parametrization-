@@ -63,6 +63,9 @@ from src.gated_mlp_independent.model import GatedMLP  # noqa: E402  official gat
 sys.path.insert(0, str(REPO / "scripts"))
 from emergency_lhs_train import split_sample_ids  # noqa: E402
 
+# Additive reproducibility/reporting helpers (no effect on training behaviour).
+import lhs_retrain_reporting as reporting  # noqa: E402
+
 
 NEURAL_MODELS = ["ann", "mlp", "wide_deep_mlp", "gated_mlp", "deep_ensemble_mlp"]
 TREE_MODELS = ["random_forest", "extra_trees", "xgboost", "catboost"]
@@ -605,6 +608,14 @@ def main() -> int:
                    "y_mean": y_scaler.mean_.tolist(), "y_scale": y_scaler.scale_.tolist(),
                    "feature_names": feature_names, "targets": TARGET_COLS}, f, indent=2)
 
+    # Reproducibility provenance (additive; does not affect training).
+    reporting.write_environment(out / "environment.json", REPO)
+    reporting.write_dataset_audit(
+        out / "dataset_audit.json", Path(cfg.data_dir),
+        split_counts=split_counts,
+        selected={"rows": int(len(meta)), "features": len(feature_names),
+                  "targets": TARGET_COLS, "unique_sample_ids": int(meta["sample_id"].nunique())})
+
     device = torch.device(cfg.device)
     print(f"Device: {device}", flush=True)
 
@@ -629,22 +640,29 @@ def main() -> int:
     for name in cfg.models:
         print(f"\n===== {DISPLAY_NAMES[name]} =====", flush=True)
         ens_std = None
+        best_epoch: Optional[int] = None
+        peak_gpu_mb = 0.0
         if name in NEURAL_MODELS:
+            if device.type == "cuda":
+                torch.cuda.reset_peak_memory_stats(device)
+                torch.cuda.synchronize(device)
             t0 = time.perf_counter()
             if name == "deep_ensemble_mlp":
-                members, member_preds = [], []
+                members, member_preds, member_epochs = [], [], []
                 for k in range(cfg.ensemble_size):
                     m = build_neural("deep_ensemble_mlp", Xs.shape[1], cfg, cfg.seed + k).to(device)
                     ckpt = dirs["models"] / f"{name}_member{k}.pt"
                     bv, be, _ = train_one_neural(m, loaders, cfg, device, ckpt)
                     m.load_state_dict(torch.load(ckpt, map_location=device))
                     members.append(m)
+                    member_epochs.append(be)
                     member_preds.append(y_scaler.inverse_transform(
                         neural_predict(m, Xs[idx["test"]], device)))
                     print(f"  member {k}: best_val={bv:.5f} @epoch {be}", flush=True)
                 stack = np.stack(member_preds, axis=0)          # [K, N, 2]
                 pred = stack.mean(axis=0)
                 ens_std = stack.std(axis=0)
+                best_epoch = int(round(float(np.mean(member_epochs)))) if member_epochs else None
                 hyperparams[name] = {"ensemble_size": cfg.ensemble_size,
                                      "member": "src.models.MLP", "hidden": cfg.hidden_size}
             else:
@@ -653,8 +671,12 @@ def main() -> int:
                 bv, be, _ = train_one_neural(model, loaders, cfg, device, ckpt)
                 model.load_state_dict(torch.load(ckpt, map_location=device))
                 pred = y_scaler.inverse_transform(neural_predict(model, Xs[idx["test"]], device))
+                best_epoch = be
                 hyperparams[name] = _neural_hp(name, cfg)
                 print(f"  best_val={bv:.5f} @epoch {be}", flush=True)
+            if device.type == "cuda":
+                torch.cuda.synchronize(device)
+                peak_gpu_mb = torch.cuda.max_memory_allocated(device) / (1024 ** 2)
             train_secs = time.perf_counter() - t0
             n_params = _neural_param_count(name, members if name == "deep_ensemble_mlp" else model)
             importance = None
@@ -694,8 +716,10 @@ def main() -> int:
         all_metrics.append(metrics)
         all_timing.append({
             "model": name, "display_name": DISPLAY_NAMES[name],
+            "best_epoch": best_epoch,
             "train_seconds": train_secs, "inference_seconds_total": inf_total,
             "inference_ms_per_row": inf_total * 1000.0 / max(len(Xte), 1),
+            "peak_gpu_memory_mb": peak_gpu_mb,
             "parameter_count": n_params})
         for by in ("experiment_id", "operation", "c_rate"):
             all_per_case.extend(grouped_metrics(test_meta, Y_test, pred, by, name))
@@ -726,6 +750,9 @@ def main() -> int:
     metrics_df = pd.DataFrame(all_metrics)
     ranked_df = make_ranking(metrics_df)
     timing_df = pd.DataFrame(all_timing)
+    # Additive: device/CUDA/GPU/throughput/test-batch columns.
+    timing_df = reporting.enrich_timing(
+        timing_df, device, cfg.batch_size, int(len(idx["test"])))
     per_case_df = pd.DataFrame(all_per_case)
 
     metrics_df.to_csv(dirs["metrics"] / "model_metrics.csv", index=False)
@@ -733,6 +760,8 @@ def main() -> int:
     timing_df.to_csv(dirs["metrics"] / "model_timing.csv", index=False)
     per_case_df.to_csv(dirs["metrics"] / "per_case_metrics.csv", index=False)
     predictions_wide.to_csv(dirs["metrics"] / "error_metric_predictions.csv", index=False)
+    # Canonical predictions.csv name required by the retrain protocol.
+    predictions_wide.to_csv(dirs["metrics"] / "predictions.csv", index=False)
     with (dirs["artifacts"] / "hyperparameters.json").open("w") as f:
         json.dump(hyperparams, f, indent=2, default=str)
 

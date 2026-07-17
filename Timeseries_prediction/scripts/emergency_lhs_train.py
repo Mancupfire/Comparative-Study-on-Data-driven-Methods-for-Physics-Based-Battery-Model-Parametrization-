@@ -50,6 +50,12 @@ from sklearn.preprocessing import StandardScaler
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
 
+# Additive reproducibility/reporting helpers (no effect on training behaviour).
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import lhs_retrain_reporting as reporting  # noqa: E402
+
+REPO = Path(__file__).resolve().parents[1]
+
 
 MODEL_NAMES = [
     "mlp",
@@ -1044,6 +1050,26 @@ def main() -> int:
         },
     )
 
+    # Reproducibility provenance (additive; does not affect training).
+    reporting.write_environment(output_dir / "environment.json", REPO)
+    reporting.write_dataset_audit(
+        output_dir / "dataset_audit.json",
+        Path(cfg.dataset_dir),
+        split_counts=split_counts,
+        selected={
+            "unique_sample_ids": int(metadata["sample_id"].nunique()),
+            "sequences": int(len(metadata)),
+            "sequence_length": cfg.sequence_length,
+            "fixed_length_method": (
+                "reparametrize each aligned curve onto q=clip(experimental_capacity/"
+                "experimental_end_capacity,0,1), then np.interp onto "
+                "linspace(0,1,sequence_length); np.interp holds endpoints so the "
+                "endpoint-held aligned tail is preserved"
+            ),
+            "alignment_mode": cfg.alignment_mode,
+        },
+    )
+
     datasets = {
         split: SequenceDataset(X, Y, mask, q_grid, idx, metadata)
         for split, idx in split_indices.items()
@@ -1082,6 +1108,9 @@ def main() -> int:
     all_metrics: List[Dict[str, object]] = []
     all_timing: List[Dict[str, object]] = []
     all_per_case: List[Dict[str, object]] = []
+    all_per_operation: List[Dict[str, object]] = []
+    all_per_c_rate: List[Dict[str, object]] = []
+    all_predictions: List[Dict[str, object]] = []
     model_predictions: Dict[str, Tuple[np.ndarray, np.ndarray, np.ndarray, pd.DataFrame]] = {}
 
     print("[4/7] Training models...", flush=True)
@@ -1221,6 +1250,70 @@ def main() -> int:
             )
             all_per_case.append(case_metrics)
 
+        # Per-operation (charge/discharge) and per-C-rate aggregates.
+        for op_val, op_group in test_meta.groupby("operation"):
+            gidx = op_group.index.to_numpy()
+            om = metric_dict(target[gidx], pred[gidx], test_mask[gidx])
+            om.update(
+                {
+                    "model": model_name,
+                    "display_name": DISPLAY_NAMES[model_name],
+                    "operation": op_val,
+                    "n_sequences": len(op_group),
+                }
+            )
+            all_per_operation.append(om)
+        for c_val, c_group in test_meta.groupby("c_rate"):
+            gidx = c_group.index.to_numpy()
+            cm = metric_dict(target[gidx], pred[gidx], test_mask[gidx])
+            cm.update(
+                {
+                    "model": model_name,
+                    "display_name": DISPLAY_NAMES[model_name],
+                    "c_rate": float(c_val),
+                    "n_sequences": len(c_group),
+                }
+            )
+            all_per_c_rate.append(cm)
+
+        # Per-sequence long-form predictions row (canonical predictions.csv).
+        for local_row in range(len(test_meta)):
+            seq_mask = test_mask[local_row].astype(bool)
+            meta_row = test_meta.iloc[local_row]
+            if seq_mask.any():
+                v_rmse = float(
+                    math.sqrt(
+                        mean_squared_error(
+                            target[local_row, :, 0][seq_mask],
+                            pred[local_row, :, 0][seq_mask],
+                        )
+                    )
+                )
+                t_rmse = float(
+                    math.sqrt(
+                        mean_squared_error(
+                            target[local_row, :, 1][seq_mask],
+                            pred[local_row, :, 1][seq_mask],
+                        )
+                    )
+                )
+            else:
+                v_rmse = t_rmse = float("nan")
+            all_predictions.append(
+                {
+                    "model": model_name,
+                    "display_name": DISPLAY_NAMES[model_name],
+                    "sequence_id": meta_row["sequence_id"],
+                    "sample_id": meta_row["sample_id"],
+                    "experiment_id": meta_row["experiment_id"],
+                    "operation": meta_row["operation"],
+                    "c_rate": float(meta_row["c_rate"]),
+                    "v_rmse": v_rmse,
+                    "t_rmse": t_rmse,
+                    "n_valid_points": int(seq_mask.sum()),
+                }
+            )
+
         np.savez_compressed(
             dirs["predictions"] / f"{model_name}_test_predictions.npz",
             prediction=pred.astype(np.float32),
@@ -1267,13 +1360,28 @@ def main() -> int:
     print("[5/7] Aggregating metrics and ranking...", flush=True)
     metrics_df = pd.DataFrame(all_metrics)
     timing_df = pd.DataFrame(all_timing)
+    # Additive: device/CUDA/GPU/throughput/test-batch columns.
+    timing_df = reporting.enrich_timing(
+        timing_df, device, cfg.batch_size, len(datasets["test"])
+    )
     per_case_df = pd.DataFrame(all_per_case)
+    per_operation_df = pd.DataFrame(all_per_operation)
+    per_c_rate_df = pd.DataFrame(all_per_c_rate)
+    predictions_df = pd.DataFrame(all_predictions)
     ranked_df = make_ranking(metrics_df)
 
     metrics_df.to_csv(dirs["metrics"] / "model_metrics.csv", index=False)
     timing_df.to_csv(dirs["metrics"] / "model_timing.csv", index=False)
     per_case_df.to_csv(dirs["metrics"] / "per_case_metrics.csv", index=False)
+    per_operation_df.to_csv(dirs["metrics"] / "per_operation_metrics.csv", index=False)
+    per_c_rate_df.to_csv(dirs["metrics"] / "per_c_rate_metrics.csv", index=False)
+    predictions_df.to_csv(dirs["metrics"] / "predictions.csv", index=False)
     ranked_df.to_csv(dirs["metrics"] / "model_ranking.csv", index=False)
+    # Dedicated voltage/temperature metric tables (subsets of model_metrics).
+    v_cols = ["model", "display_name", "v_mae", "v_rmse", "v_r2", "n_valid_points"]
+    t_cols = ["model", "display_name", "t_mae", "t_rmse", "t_r2", "n_valid_points"]
+    metrics_df[v_cols].to_csv(dirs["metrics"] / "voltage_metrics.csv", index=False)
+    metrics_df[t_cols].to_csv(dirs["metrics"] / "temperature_metrics.csv", index=False)
     plot_ranking_heatmap(ranked_df, dirs["figures"] / "model_ranking_heatmap.png")
 
     best_name = str(ranked_df.iloc[0]["model"])
